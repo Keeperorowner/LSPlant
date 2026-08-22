@@ -22,6 +22,9 @@ module;
 
 #include "logging.hpp"
 
+// Provided by libaliuhook (aliuhook.cpp) so LSPlant diagnostics reach FileLog.
+extern "C" void AliuHookLog(const char *msg);
+
 module lsplant;
 
 import dex_builder;
@@ -276,51 +279,63 @@ inline void UpdateTrampoline(uint8_t offset) {
 bool InitNative(JNIEnv *env, const HookHandler &handler) {
     if (!ArtMethod::Init(env, handler)) {
         LOGE("Failed to init art method");
+        AliuHookLog("[LSPlant] InitNative: ArtMethod::Init failed");
         return false;
     }
     UpdateTrampoline(ArtMethod::GetEntryPointOffset());
     if (!Thread::Init(handler)) {
         LOGE("Failed to init thread");
+        AliuHookLog("[LSPlant] InitNative: Thread::Init failed");
         return false;
     }
     if (!Class::Init(handler)) {
         LOGE("Failed to init mirror class");
+        AliuHookLog("[LSPlant] InitNative: Class::Init failed");
         return false;
     }
     if (!Runtime::Init(handler)) {
         LOGE("Failed to init runtime");
+        AliuHookLog("[LSPlant] InitNative: Runtime::Init failed");
         return false;
     }
     if (!ClassLinker::Init(env, handler)) {
         LOGE("Failed to init class linker");
+        AliuHookLog("[LSPlant] InitNative: ClassLinker::Init failed");
         return false;
     }
     if (!ScopedSuspendAll::Init(handler)) {
         LOGE("Failed to init scoped suspend all");
+        AliuHookLog("[LSPlant] InitNative: ScopedSuspendAll::Init failed");
         return false;
     }
     if (!ScopedGCCriticalSection::Init(handler)) {
         LOGE("Failed to init scoped gc critical section");
+        AliuHookLog("[LSPlant] InitNative: ScopedGCCriticalSection::Init failed");
         return false;
     }
     if (!JitCodeCache::Init(handler)) {
         LOGE("Failed to init jit code cache");
+        AliuHookLog("[LSPlant] InitNative: JitCodeCache::Init failed");
         return false;
     }
     if (!Jit::Init(handler)) {
         LOGE("Failed to init jit");
+        AliuHookLog("[LSPlant] InitNative: Jit::Init failed");
         return false;
     }
     if (!DexFile::Init(env, handler)) {
         LOGE("Failed to init dex file");
+        AliuHookLog("[LSPlant] InitNative: DexFile::Init failed");
         return false;
     }
     if (!Instrumentation::Init(env, handler)) {
         LOGE("Failed to init instrumentation");
+        AliuHookLog("[LSPlant] InitNative: Instrumentation::Init failed");
         return false;
     }
     if (!JniIdManager::Init(env, handler)) {
         LOGE("Failed to init jni id manager");
+        AliuHookLog("[LSPlant] InitNative: JniIdManager::Init failed");
         return false;
     }
 
@@ -801,9 +816,25 @@ using ::lsplant::IsHooked;
     if (!info.inline_hooker || !info.inline_unhooker || !info.art_symbol_resolver ||
         !info.art_symbol_prefix_resolver) {
         LOGE("Invalid init info");
+        AliuHookLog("[LSPlant] Init: invalid InitInfo");
         return false;
     }
-    bool static kInit = InitConfig(info) && InitJNI(env) && InitNative(env, info);
+    bool static kInit = [&]() {
+        if (!InitConfig(info)) {
+            AliuHookLog("[LSPlant] Init: InitConfig failed");
+            return false;
+        }
+        if (!InitJNI(env)) {
+            AliuHookLog("[LSPlant] Init: InitJNI failed (hidden API?)");
+            return false;
+        }
+        if (!InitNative(env, info)) {
+            AliuHookLog("[LSPlant] Init: InitNative failed");
+            return false;
+        }
+        AliuHookLog("[LSPlant] Init: OK");
+        return true;
+    }();
     return kInit;
 }
 
